@@ -2,11 +2,11 @@
 <br />
 
 ![Maven Central](https://img.shields.io/maven-central/v/com.materialkolor/material-kolor)
-[![Kotlin](https://img.shields.io/badge/kotlin-v2.3.0-blue.svg?logo=kotlin)](http://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/kotlin-v2.4.0-blue.svg?logo=kotlin)](http://kotlinlang.org)
 [![Build](https://github.com/jordond/materialkolor/actions/workflows/ci.yml/badge.svg)](https://github.com/jordond/materialkolor/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/jordond/MaterialKolor)](https://opensource.org/license/mit/)
 
-[![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.9.1-blue)](https://github.com/JetBrains/compose-multiplatform)
+[![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.12.0--beta02-blue)](https://github.com/JetBrains/compose-multiplatform)
 ![badge-android](http://img.shields.io/badge/platform-android-6EDB8D.svg?style=flat)
 ![badge-ios](http://img.shields.io/badge/platform-ios-CDCDCD.svg?style=flat)
 ![badge-desktop](http://img.shields.io/badge/platform-desktop-DB413D.svg?style=flat)
@@ -14,6 +14,15 @@
 
 A Compose Multiplatform library for creating dynamic Material Design 3 color palettes from any
 color.
+
+> [!IMPORTANT]
+> This `mingw` fork is based directly on upstream `5.0.0` and adds a native Windows `mingwX64`
+> variant. Its fork coordinates are
+> `io.github.archivesteak.materialkolor:material-kolor:5.0.0-mingw` and
+> `io.github.archivesteak.materialkolor:material-color-utilities:5.0.0-mingw`. Remote publication is
+> deliberately disabled while validation is in progress, so these coordinates are currently for
+> explicit isolated local repositories only. The released upstream coordinates shown below remain
+> unchanged.
 
 Check out [MaterialKolor Builder](https://materialkolor.com) to see MaterialKolor in action and
 generate your own color schemes. It can export to MaterialKolor code, or plain Material 3 code.
@@ -47,6 +56,7 @@ This library is written for Compose Multiplatform, and can be used on the follow
 - Android
 - iOS
 - JVM (Desktop)
+- Windows native (`mingwX64`, this fork)
 - JavaScript/wasm (Browser)
 
 You can see it in action by using [MaterialKolor Builder](https://materialkolor.com).
@@ -75,7 +85,7 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-              implementation("com.materialkolor:material-kolor:4.1.1")
+              implementation("com.materialkolor:material-kolor:5.0.0")
             }
         }
     }
@@ -88,7 +98,7 @@ For an Android only project, add the dependency to app level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-  implementation("com.materialkolor:material-kolor:4.1.1")
+  implementation("com.materialkolor:material-kolor:5.0.0")
 }
 ```
 
@@ -96,7 +106,7 @@ dependencies {
 
 ```toml
 [versions]
-materialKolor = "4.1.1"
+materialKolor = "5.0.0"
 
 [libraries]
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
@@ -111,7 +121,7 @@ Google's [Material Color Utilities](https://github.com/material-foundation/mater
 
 ```toml
 [versions]
-materialKolor = "4.1.1"
+materialKolor = "5.0.0"
 
 [libraries]
 materialKolor-utilities = { module = "com.materialkolor:material-color-utilities", version.ref = "materialKolor" }
@@ -313,5 +323,6 @@ information.
 
 - Convert Java code to Kotlin
 - Convert library to Kotlin Multiplatform
+- Add a native Windows `mingwX64` target and fork-owned publication coordinates
 
 For the remaining code see [LICENSE](LICENSE) for more information.

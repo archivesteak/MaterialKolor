@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   check:
+    if: github.repository == 'jordond/MaterialKolor'
     name: "Check upstream for changes"
     runs-on: ubuntu-latest
     steps:

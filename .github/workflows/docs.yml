@@ -7,6 +7,7 @@ permissions:
 
 jobs:
   documentation:
+    if: github.repository == 'jordond/MaterialKolor'
     name: "Publish Documentation"
     runs-on: ubuntu-latest
     steps:

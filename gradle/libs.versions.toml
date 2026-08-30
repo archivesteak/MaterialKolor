@@ -5,8 +5,10 @@ sdk-min = "21"
 jvmTarget = "17"
 agp = "9.2.1"
 kotlin = "2.4.0"
-compose-multiplatform = "1.11.1"
-compose-material3 = "1.11.0-alpha07"
+# The core Compose and Material3 release trains have distinct versions. This exact Material3
+# source is JetBrains 1.12.0-alpha03 (based on Jetpack Material3 1.5.0-alpha22).
+compose-fork = "1.12.0-beta02-mingw"
+compose-material3 = "1.12.0-alpha03-mingw"
 androidx-annotation = "1.10.0"
 binaryCompatibility = "0.18.1"
 dokka = "2.2.0"
@@ -23,16 +25,16 @@ androidx-annotation = { module = "androidx.annotation:annotation", version.ref =
 colormath = { module = "com.github.ajalt.colormath:colormath", version.ref = "colormath" }
 errorProneAnnotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorProneAnnotations" }
 kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
-compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
-compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
-compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
-compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "compose-multiplatform" }
-compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
+compose-foundation = { module = "io.github.archivesteak.compose.foundation:foundation", version.ref = "compose-fork" }
+compose-runtime = { module = "io.github.archivesteak.compose.runtime:runtime", version.ref = "compose-fork" }
+compose-ui = { module = "io.github.archivesteak.compose.ui:ui", version.ref = "compose-fork" }
+compose-ui-test = { module = "io.github.archivesteak.compose.ui:ui-test", version.ref = "compose-fork" }
+compose-material3 = { module = "io.github.archivesteak.compose.material3:material3", version.ref = "compose-material3" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
-compose = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+compose = { id = "io.github.archivesteak.compose", version.ref = "compose-fork" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 multiplatform-android-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

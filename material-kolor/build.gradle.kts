@@ -20,6 +20,7 @@ kotlin {
         compileSdk = libs.versions.sdk.compile.get().toInt()
         minSdk = libs.versions.sdk.min.get().toInt()
         namespace = "com.materialkolor"
+        withHostTest {}
 
         optimization {
             consumerKeepRules.publish = true
@@ -48,6 +49,8 @@ kotlin {
 
     macosArm64()
 
+    mingwX64()
+
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
@@ -70,11 +73,11 @@ kotlin {
 
         commonTest.dependencies {
             implementation(kotlin("test"))
-            implementation(libs.compose.ui.test)
         }
 
         jvmTest.dependencies {
             implementation(compose.desktop.currentOs)
+            implementation(libs.compose.ui.test)
         }
     }
 

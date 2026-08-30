@@ -20,6 +20,7 @@ kotlin {
         compileSdk = libs.versions.sdk.compile.get().toInt()
         minSdk = libs.versions.sdk.min.get().toInt()
         namespace = "com.materialkolor.colorutilities"
+        withHostTest {}
 
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_11)
@@ -41,6 +42,8 @@ kotlin {
     }
 
     macosArm64()
+
+    mingwX64()
 
     listOf(
         iosX64(),

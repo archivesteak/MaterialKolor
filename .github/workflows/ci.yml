@@ -21,10 +21,11 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
+    if: github.repository == 'jordond/MaterialKolor'
     name: "Verify"
     runs-on: ubuntu-latest
     steps:
@@ -43,10 +44,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Binary Compatibility Validation
-        run: ./gradlew apiCheck --scan
+        run: ./gradlew apiCheck
 
       - name: Upstream Tests
-        run: ./gradlew :mcu-upstream:test --scan
+        run: ./gradlew :mcu-upstream:test
 
       - name: Material Kolor Tests
-        run: ./gradlew :material-kolor:jvmTest --scan
+        run: ./gradlew :material-kolor:jvmTest
