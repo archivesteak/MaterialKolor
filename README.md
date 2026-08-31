@@ -2,8 +2,8 @@
 <br />
 
 ![Maven Central](https://img.shields.io/maven-central/v/com.materialkolor/material-kolor)
-[![Kotlin](https://img.shields.io/badge/kotlin-v2.4.0-blue.svg?logo=kotlin)](http://kotlinlang.org)
-[![Build](https://github.com/jordond/materialkolor/actions/workflows/ci.yml/badge.svg)](https://github.com/jordond/materialkolor/actions/workflows/ci.yml)
+[![Kotlin](https://img.shields.io/badge/kotlin-v2.4.10-blue.svg?logo=kotlin)](http://kotlinlang.org)
+[![Build](https://github.com/archivesteak/MaterialKolor/actions/workflows/ci.yml/badge.svg?branch=mingw)](https://github.com/archivesteak/MaterialKolor/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/jordond/MaterialKolor)](https://opensource.org/license/mit/)
 
 [![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-1.12.0--beta02-blue)](https://github.com/JetBrains/compose-multiplatform)
@@ -16,10 +16,10 @@ A Compose Multiplatform library for creating dynamic Material Design 3 color pal
 color.
 
 > [!IMPORTANT]
-> This `mingw` fork is based directly on upstream `5.0.0` and adds a native Windows `mingwX64`
+> This `mingw` fork carries upstream `5.0.1` and adds a native Windows `mingwX64`
 > variant. Its fork coordinates are
-> `io.github.archivesteak.materialkolor:material-kolor:5.0.0-mingw` and
-> `io.github.archivesteak.materialkolor:material-color-utilities:5.0.0-mingw`. Remote publication is
+> `io.github.archivesteak.materialkolor:material-kolor:5.0.1-mingw` and
+> `io.github.archivesteak.materialkolor:material-color-utilities:5.0.1-mingw`. Remote publication is
 > deliberately disabled while validation is in progress, so these coordinates are currently for
 > explicit isolated local repositories only. The released upstream coordinates shown below remain
 > unchanged.
@@ -85,7 +85,7 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
-              implementation("com.materialkolor:material-kolor:5.0.0")
+              implementation("com.materialkolor:material-kolor:5.0.1")
             }
         }
     }
@@ -98,7 +98,7 @@ For an Android only project, add the dependency to app level `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-  implementation("com.materialkolor:material-kolor:5.0.0")
+  implementation("com.materialkolor:material-kolor:5.0.1")
 }
 ```
 
@@ -106,7 +106,7 @@ dependencies {
 
 ```toml
 [versions]
-materialKolor = "5.0.0"
+materialKolor = "5.0.1"
 
 [libraries]
 materialKolor = { module = "com.materialkolor:material-kolor", version.ref = "materialKolor" }
@@ -121,7 +121,7 @@ Google's [Material Color Utilities](https://github.com/material-foundation/mater
 
 ```toml
 [versions]
-materialKolor = "5.0.0"
+materialKolor = "5.0.1"
 
 [libraries]
 materialKolor-utilities = { module = "com.materialkolor:material-color-utilities", version.ref = "materialKolor" }

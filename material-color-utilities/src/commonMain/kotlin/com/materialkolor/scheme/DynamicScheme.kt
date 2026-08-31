@@ -412,19 +412,20 @@ public open class DynamicScheme(
          */
         private fun maybeFallbackSpecVersion(
             specVersion: ColorSpec.SpecVersion,
-            variant: Variant
-        ): ColorSpec.SpecVersion {
-            return when (variant) {
+            variant: Variant,
+        ): ColorSpec.SpecVersion =
+            when (variant) {
                 Variant.EXPRESSIVE,
                 Variant.VIBRANT,
                 Variant.TONAL_SPOT,
-                Variant.NEUTRAL -> specVersion
+                Variant.NEUTRAL,
+                -> specVersion
                 Variant.MONOCHROME,
                 Variant.FIDELITY,
                 Variant.CONTENT,
                 Variant.RAINBOW,
-                Variant.FRUIT_SALAD -> ColorSpec.SpecVersion.SPEC_2021
+                Variant.FRUIT_SALAD,
+                -> ColorSpec.SpecVersion.SPEC_2021
             }
-        }
     }
 }

@@ -1,0 +1,486 @@
+name: Build MaterialKolor host shards
+
+on:
+  workflow_call:
+    inputs:
+      materialkolor_ref:
+        description: Exact MaterialKolor source commit to build
+        required: true
+        type: string
+      materialkolor_contract_ref:
+        description: Exact MaterialKolor commit containing this workflow and release contract
+        required: true
+        type: string
+      core_repository:
+        description: Exact owner/repository containing the core producer workflows
+        required: true
+        type: string
+      core_ref:
+        description: Full core source commit pinned by the core requirements
+        required: true
+        type: string
+      core_contract_ref:
+        description: Exact core commit containing the merger, requirements, and producer workflows
+        required: true
+        type: string
+      core_windows_run_id:
+        description: Successful run containing maven-windows
+        required: true
+        type: string
+      core_apple_run_id:
+        description: Successful run containing maven-apple
+        required: true
+        type: string
+      core_web_run_id:
+        description: Successful run containing maven-web-android
+        required: true
+        type: string
+    secrets:
+      core_artifacts_token:
+        description: Read-only contents/actions token for the core repository
+        required: true
+  workflow_dispatch:
+    inputs:
+      materialkolor_ref:
+        description: Exact MaterialKolor source commit to build
+        required: true
+        type: string
+      materialkolor_contract_ref:
+        description: Exact MaterialKolor commit containing this workflow and release contract
+        required: true
+        type: string
+      core_repository:
+        description: Exact owner/repository containing the core producer workflows
+        required: true
+        type: string
+        default: archivesteak/compose-multiplatform-core
+      core_ref:
+        description: Full core source commit pinned by the core requirements
+        required: true
+        type: string
+      core_contract_ref:
+        description: Exact core commit containing the merger, requirements, and producer workflows
+        required: true
+        type: string
+      core_windows_run_id:
+        description: Successful run containing maven-windows
+        required: true
+        type: string
+      core_apple_run_id:
+        description: Successful run containing maven-apple
+        required: true
+        type: string
+      core_web_run_id:
+        description: Successful run containing maven-web-android
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: materialkolor-host-shards-${{ inputs.materialkolor_contract_ref }}-${{ inputs.materialkolor_ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare-core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the immutable MaterialKolor orchestration contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: archivesteak/MaterialKolor
+          ref: ${{ inputs.materialkolor_contract_ref }}
+          path: orchestration
+          persist-credentials: false
+
+      - name: Require a read-only cross-repository token
+        shell: bash
+        env:
+          CORE_ARTIFACTS_TOKEN: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+          MATERIALKOLOR_CONTRACT_REF: ${{ inputs.materialkolor_contract_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          if [[ ! "$MATERIALKOLOR_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]] || \
+             [ "$MATERIALKOLOR_CONTRACT_REF" != "$WORKFLOW_SHA" ]; then
+            echo "materialkolor_contract_ref must be this workflow's exact lowercase commit $WORKFLOW_SHA"
+            exit 1
+          fi
+          resolved=$(git -C orchestration rev-parse HEAD)
+          if [ "$resolved" != "$MATERIALKOLOR_CONTRACT_REF" ]; then
+            echo "orchestration checkout resolved to $resolved, expected $MATERIALKOLOR_CONTRACT_REF"
+            exit 1
+          fi
+          if [ -z "$CORE_ARTIFACTS_TOKEN" ]; then
+            echo "CORE_ARTIFACTS_TOKEN is required with read-only contents/actions access."
+            exit 1
+          fi
+
+      - name: Check out the exact core merge contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.core_repository }}
+          ref: ${{ inputs.core_contract_ref }}
+          path: core-contract
+          persist-credentials: false
+          token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
+      - name: Test the downstream provenance and shard contracts
+        shell: bash
+        run: python3 -m unittest discover orchestration/.github/scripts -p 'test_*.py' -v
+
+      - name: Validate immutable core inputs
+        shell: bash
+        env:
+          CORE_REPOSITORY: ${{ inputs.core_repository }}
+          CORE_REF: ${{ inputs.core_ref }}
+          CORE_CONTRACT_REF: ${{ inputs.core_contract_ref }}
+          WINDOWS_RUN_ID: ${{ inputs.core_windows_run_id }}
+          APPLE_RUN_ID: ${{ inputs.core_apple_run_id }}
+          WEB_RUN_ID: ${{ inputs.core_web_run_id }}
+        run: |
+          if [[ ! "$CORE_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "core_contract_ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
+          resolved=$(git -C core-contract rev-parse HEAD)
+          if [ "$resolved" != "$CORE_CONTRACT_REF" ]; then
+            echo "core checkout resolved to $resolved, expected $CORE_CONTRACT_REF"
+            exit 1
+          fi
+          test -z "$(git -C core-contract status --porcelain=v1 --untracked-files=all)"
+          python3 orchestration/.github/scripts/validate_core_artifact_inputs.py \
+            --core-repository "$CORE_REPOSITORY" \
+            --core-ref "$CORE_REF" \
+            --core-windows-run-id "$WINDOWS_RUN_ID" \
+            --core-apple-run-id "$APPLE_RUN_ID" \
+            --core-web-run-id "$WEB_RUN_ID" \
+            --core-requirements core-contract/scripts/maven-variant-requirements.json
+
+      - name: Validate producer run conclusions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+          CORE_REPOSITORY: ${{ inputs.core_repository }}
+          CORE_CONTRACT_REF: ${{ inputs.core_contract_ref }}
+          WINDOWS_RUN_ID: ${{ inputs.core_windows_run_id }}
+          APPLE_RUN_ID: ${{ inputs.core_apple_run_id }}
+          WEB_RUN_ID: ${{ inputs.core_web_run_id }}
+        run: |
+          for declaration in \
+            "windows=$WINDOWS_RUN_ID" \
+            "apple=$APPLE_RUN_ID" \
+            "web=$WEB_RUN_ID"; do
+            owner=${declaration%%=*}
+            run_id=${declaration#*=}
+            payload=$(gh api "repos/$CORE_REPOSITORY/actions/runs/$run_id")
+            conclusion=$(jq -r .conclusion <<<"$payload")
+            repository=$(jq -r .head_repository.full_name <<<"$payload")
+            head_sha=$(jq -r .head_sha <<<"$payload")
+            if [ "$conclusion" != success ] || \
+               [ "$repository" != "$CORE_REPOSITORY" ] || \
+               [ "$head_sha" != "$CORE_CONTRACT_REF" ]; then
+              echo "$owner run $run_id is not a successful $CORE_CONTRACT_REF run from $CORE_REPOSITORY"
+              exit 1
+            fi
+          done
+
+      - name: Download Windows core shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: maven-windows
+          path: core-shards/windows
+          repository: ${{ inputs.core_repository }}
+          run-id: ${{ inputs.core_windows_run_id }}
+          github-token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
+      - name: Download Apple core shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: maven-apple
+          path: core-shards/apple
+          repository: ${{ inputs.core_repository }}
+          run-id: ${{ inputs.core_apple_run_id }}
+          github-token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
+      - name: Download web and Android core shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: maven-web-android
+          path: core-shards/web
+          repository: ${{ inputs.core_repository }}
+          run-id: ${{ inputs.core_web_run_id }}
+          github-token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
+      - name: Strictly union and validate the core repository
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/validated-core"
+          python3 core-contract/scripts/merge-maven-artifact.py \
+            --windows core-shards/windows \
+            --apple core-shards/apple \
+            --web core-shards/web \
+            --destination "$RUNNER_TEMP/validated-core/repository" \
+            --requirements core-contract/scripts/maven-variant-requirements.json \
+            --dry-run \
+            --report "$RUNNER_TEMP/validated-core/merge-report.json"
+          python3 core-contract/scripts/merge-maven-artifact.py \
+            --windows core-shards/windows \
+            --apple core-shards/apple \
+            --web core-shards/web \
+            --destination "$RUNNER_TEMP/validated-core/repository" \
+            --requirements core-contract/scripts/maven-variant-requirements.json \
+            --report "$RUNNER_TEMP/validated-core/merge-report.json"
+          test -d "$RUNNER_TEMP/validated-core/repository/io/github/archivesteak"
+          test -s "$RUNNER_TEMP/validated-core/merge-report.json"
+
+      - name: Upload the short-lived validated core repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: validated-core-maven
+          path: ${{ runner.temp }}/validated-core
+          if-no-files-found: error
+          retention-days: 1
+
+  build-host-shards:
+    needs: prepare-core
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include:
+          - owner: windows
+            host_shard: windows
+            runner: windows-2022
+            artifact: materialkolor-maven-windows
+          - owner: apple
+            host_shard: apple
+            runner: macos-15
+            artifact: materialkolor-maven-apple
+          - owner: web
+            host_shard: web-android
+            runner: ubuntu-24.04
+            artifact: materialkolor-maven-web-android
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out the immutable MaterialKolor orchestration contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: archivesteak/MaterialKolor
+          ref: ${{ inputs.materialkolor_contract_ref }}
+          path: orchestration
+          persist-credentials: false
+
+      - name: Check out the exact MaterialKolor source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: archivesteak/MaterialKolor
+          ref: ${{ inputs.materialkolor_ref }}
+          path: source
+          persist-credentials: false
+
+      - name: Download the validated core repository
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: validated-core-maven
+          path: validated-core
+
+      - name: Validate exact source and provenance contract before building
+        shell: pwsh
+        env:
+          MATERIALKOLOR_REF: ${{ inputs.materialkolor_ref }}
+          MATERIALKOLOR_CONTRACT_REF: ${{ inputs.materialkolor_contract_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          OWNER: ${{ matrix.owner }}
+        run: |
+          if ($env:MATERIALKOLOR_CONTRACT_REF -cnotmatch '^[0-9a-f]{40}$' -or
+              $env:MATERIALKOLOR_CONTRACT_REF -cne $env:WORKFLOW_SHA) {
+            throw "materialkolor_contract_ref must equal workflow commit $env:WORKFLOW_SHA"
+          }
+          $contractResolved = (git -C orchestration rev-parse HEAD).Trim()
+          if ($contractResolved -cne $env:MATERIALKOLOR_CONTRACT_REF) {
+            throw "contract checkout resolved to $contractResolved"
+          }
+          if ($env:MATERIALKOLOR_REF -cnotmatch '^[0-9a-f]{40}$') {
+            throw 'materialkolor_ref must be a full lowercase 40-character commit SHA'
+          }
+          $resolved = (git -C source rev-parse HEAD).Trim()
+          if ($resolved -cne $env:MATERIALKOLOR_REF) {
+            throw "MaterialKolor checkout resolved to $resolved, expected $env:MATERIALKOLOR_REF"
+          }
+          if ((git -C source status --porcelain=v1 --untracked-files=all)) {
+            throw 'MaterialKolor source checkout is not clean'
+          }
+          if ($env:OWNER -eq 'apple') {
+            $architecture = (& uname -m).Trim()
+            if ($architecture -cne 'arm64') {
+              throw "Apple shard requires an arm64 runner so macosArm64 tests execute; found $architecture"
+            }
+          }
+          python orchestration/.github/scripts/prepare_materialkolor_shard.py `
+            --owner $env:OWNER `
+            --requirements orchestration/.github/materialkolor-maven-variant-requirements.json `
+            --materialkolor-ref $env:MATERIALKOLOR_REF `
+            --core-report validated-core/merge-report.json `
+            --validate-only
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Build, test, and stage exactly one host shard
+        shell: pwsh
+        env:
+          HOST_SHARD: ${{ matrix.host_shard }}
+        run: |
+          $repository = (Resolve-Path validated-core/repository).Path
+          $env:GRADLE_USER_HOME = Join-Path $env:RUNNER_TEMP "gradle-materialkolor-$env:HOST_SHARD"
+          Push-Location source
+          try {
+            $gradlew = if ($IsWindows) { '.\gradlew.bat' } else { './gradlew' }
+            & $gradlew `
+              "-Dmaven.repo.local=$repository" `
+              "-PmaterialKolor.hostShard=$env:HOST_SHARD" `
+              publishHostShardToMavenLocal `
+              --no-daemon `
+              --console=plain
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
+
+      - name: Extract the exact MaterialKolor shard and provenance
+        shell: pwsh
+        env:
+          MATERIALKOLOR_REF: ${{ inputs.materialkolor_ref }}
+          OWNER: ${{ matrix.owner }}
+        run: |
+          $repository = (Resolve-Path validated-core/repository).Path
+          $destination = Join-Path $env:RUNNER_TEMP "materialkolor-$env:OWNER"
+          python orchestration/.github/scripts/prepare_materialkolor_shard.py `
+            --owner $env:OWNER `
+            --source-repository $repository `
+            --destination $destination `
+            --requirements orchestration/.github/materialkolor-maven-variant-requirements.json `
+            --materialkolor-ref $env:MATERIALKOLOR_REF `
+            --core-report validated-core/merge-report.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload the short-lived MaterialKolor host shard
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ runner.temp }}/materialkolor-${{ matrix.owner }}
+          if-no-files-found: error
+          retention-days: 1
+
+  merge-materialkolor:
+    needs:
+      - prepare-core
+      - build-host-shards
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out the immutable MaterialKolor orchestration contract
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: archivesteak/MaterialKolor
+          ref: ${{ inputs.materialkolor_contract_ref }}
+          path: orchestration
+          persist-credentials: false
+
+      - name: Check out the exact core merge implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.core_repository }}
+          ref: ${{ inputs.core_contract_ref }}
+          path: core-contract
+          persist-credentials: false
+          token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
+      - name: Validate immutable merge implementations
+        shell: bash
+        env:
+          MATERIALKOLOR_CONTRACT_REF: ${{ inputs.materialkolor_contract_ref }}
+          CORE_CONTRACT_REF: ${{ inputs.core_contract_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          if [[ ! "$MATERIALKOLOR_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]] || \
+             [ "$MATERIALKOLOR_CONTRACT_REF" != "$WORKFLOW_SHA" ]; then
+            echo "materialkolor_contract_ref must be this workflow's exact lowercase commit $WORKFLOW_SHA"
+            exit 1
+          fi
+          if [[ ! "$CORE_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "core_contract_ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
+          test "$(git -C orchestration rev-parse HEAD)" = "$MATERIALKOLOR_CONTRACT_REF"
+          test "$(git -C core-contract rev-parse HEAD)" = "$CORE_CONTRACT_REF"
+          test -z "$(git -C orchestration status --porcelain=v1 --untracked-files=all)"
+          test -z "$(git -C core-contract status --porcelain=v1 --untracked-files=all)"
+
+      - name: Download the validated core provenance
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: validated-core-maven
+          path: validated-core
+
+      - name: Download Windows MaterialKolor shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: materialkolor-maven-windows
+          path: materialkolor-shards/windows
+
+      - name: Download Apple MaterialKolor shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: materialkolor-maven-apple
+          path: materialkolor-shards/apple
+
+      - name: Download web and Android MaterialKolor shard
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: materialkolor-maven-web-android
+          path: materialkolor-shards/web
+
+      - name: Strictly union and validate the complete MaterialKolor repository
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/validated-materialkolor"
+          python3 core-contract/scripts/merge-maven-artifact.py \
+            --windows materialkolor-shards/windows \
+            --apple materialkolor-shards/apple \
+            --web materialkolor-shards/web \
+            --destination "$RUNNER_TEMP/validated-materialkolor/repository" \
+            --requirements orchestration/.github/materialkolor-maven-variant-requirements.json \
+            --dry-run \
+            --report "$RUNNER_TEMP/validated-materialkolor/materialkolor-merge-report.json"
+          python3 core-contract/scripts/merge-maven-artifact.py \
+            --windows materialkolor-shards/windows \
+            --apple materialkolor-shards/apple \
+            --web materialkolor-shards/web \
+            --destination "$RUNNER_TEMP/validated-materialkolor/repository" \
+            --requirements orchestration/.github/materialkolor-maven-variant-requirements.json \
+            --report "$RUNNER_TEMP/validated-materialkolor/materialkolor-merge-report.json"
+          cp validated-core/merge-report.json \
+            "$RUNNER_TEMP/validated-materialkolor/core-merge-report.json"
+          test -d "$RUNNER_TEMP/validated-materialkolor/repository/io/github/archivesteak/materialkolor"
+          test -s "$RUNNER_TEMP/validated-materialkolor/core-merge-report.json"
+          test -s "$RUNNER_TEMP/validated-materialkolor/materialkolor-merge-report.json"
+
+      - name: Upload the short-lived validated MaterialKolor repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: validated-materialkolor-maven
+          path: ${{ runner.temp }}/validated-materialkolor
+          if-no-files-found: error
+          retention-days: 1

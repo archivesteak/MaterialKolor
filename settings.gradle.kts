@@ -1,3 +1,7 @@
+check(!gradle.startParameter.isBuildScan) {
+    "External build-scan publication is frozen; remove --scan"
+}
+
 pluginManagement {
     val explicitForkRepositoryPath = System.getProperty("maven.repo.local")
         ?.trim()
@@ -87,22 +91,6 @@ dependencyResolutionManagement {
         mavenCentral()
         maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
     }
-}
-
-// Keep the plugin pinned so Gradle's --scan flag cannot auto-inject a newer uploader before this
-// settings script executes. Publication is unconditionally disabled, and --scan is rejected above.
-plugins {
-    id("com.gradle.develocity") version "4.4.0"
-}
-
-develocity {
-    buildScan {
-        publishing.onlyIf { false }
-    }
-}
-
-check(!gradle.startParameter.isBuildScan) {
-    "External build-scan publication is frozen; remove --scan"
 }
 
 rootProject.name = "MaterialKolor"

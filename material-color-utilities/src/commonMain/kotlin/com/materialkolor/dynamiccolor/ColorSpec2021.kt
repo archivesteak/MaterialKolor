@@ -1216,12 +1216,10 @@ public open class ColorSpec2021 : ColorSpec {
                 sourceColorHct.hue,
                 max(sourceColorHct.chroma - 32.0, sourceColorHct.chroma * 0.5),
             )
-
             Variant.FRUIT_SALAD -> return TonalPalette.fromHueAndChroma(
                 MathUtils.sanitizeDegrees(sourceColorHct.hue - 50.0),
                 36.0,
             )
-
             Variant.MONOCHROME -> return TonalPalette.fromHueAndChroma(sourceColorHct.hue, 0.0)
             Variant.NEUTRAL -> return TonalPalette.fromHueAndChroma(sourceColorHct.hue, 8.0)
             Variant.RAINBOW -> return TonalPalette.fromHueAndChroma(sourceColorHct.hue, 16.0)
@@ -1229,7 +1227,6 @@ public open class ColorSpec2021 : ColorSpec {
                 sourceColorHct.hue,
                 16.0,
             )
-
             Variant.EXPRESSIVE -> return TonalPalette.fromHueAndChroma(
                 DynamicScheme.getRotatedHue(
                     sourceColorHct,
@@ -1238,7 +1235,6 @@ public open class ColorSpec2021 : ColorSpec {
                 ),
                 24.0,
             )
-
             Variant.VIBRANT -> return TonalPalette.fromHueAndChroma(
                 DynamicScheme.getRotatedHue(
                     sourceColorHct,
@@ -1306,7 +1302,6 @@ public open class ColorSpec2021 : ColorSpec {
                 ),
                 chroma = 32.0,
             )
-
             Variant.VIBRANT -> TonalPalette.fromHueAndChroma(
                 hue = DynamicScheme.getRotatedHue(
                     sourceColorHct = sourceColorHct,

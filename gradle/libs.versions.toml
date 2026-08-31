@@ -3,25 +3,28 @@ runtime = "1.10.0"
 sdk-compile = "37"
 sdk-min = "21"
 jvmTarget = "17"
-agp = "9.2.1"
-kotlin = "2.4.0"
+agp = "9.3.2"
+kotlin = "2.4.10"
 # The core Compose and Material3 release trains have distinct versions. This exact Material3
-# source is JetBrains 1.12.0-alpha03 (based on Jetpack Material3 1.5.0-alpha22).
+# source is JetBrains 1.12.0-alpha03; Android uses upstream MaterialKolor's current compile-only
+# AndroidX dependency so this fork does not force an older Material3 onto Android consumers.
 compose-fork = "1.12.0-beta02-mingw"
 compose-material3 = "1.12.0-alpha03-mingw"
 androidx-annotation = "1.10.0"
+androidx-material3 = "1.5.0-alpha27"
 binaryCompatibility = "0.18.1"
 dokka = "2.2.0"
 publish = "0.37.0"
 colormath = "3.6.1"
 poko = "0.23.1"
 errorProneAnnotations = "2.50.0"
-kotest = "6.2.2"
+kotest = "6.2.4"
 ktlint = "1.8.0"
-spotless = "8.8.0"
+spotless = "8.10.1"
 
 [libraries]
 androidx-annotation = { module = "androidx.annotation:annotation", version.ref = "androidx-annotation" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "androidx-material3" }
 colormath = { module = "com.github.ajalt.colormath:colormath", version.ref = "colormath" }
 errorProneAnnotations = { module = "com.google.errorprone:error_prone_annotations", version.ref = "errorProneAnnotations" }
 kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
