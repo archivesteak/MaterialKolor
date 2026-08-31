@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 WORKFLOW = Path(__file__).parents[1] / "workflows" / "release-host-shards.yml"
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 class ReleaseWorkflowContractTest(unittest.TestCase):
@@ -75,6 +76,17 @@ class ReleaseWorkflowContractTest(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, self.text)
+
+    def test_publications_identify_the_fork_maintainer(self) -> None:
+        for relative in (
+            "material-color-utilities/build.gradle.kts",
+            "material-kolor/build.gradle.kts",
+        ):
+            with self.subTest(relative=relative):
+                publication = (REPOSITORY / relative).read_text(encoding="utf-8")
+                self.assertIn('id.set("archivesteak")', publication)
+                self.assertIn('name.set("Jack Harrington")', publication)
+                self.assertIn("developerConnection.set(", publication)
 
 
 if __name__ == "__main__":

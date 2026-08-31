@@ -102,7 +102,7 @@ mavenPublishing {
         developers {
             developer {
                 id.set("archivesteak")
-                name.set("archivesteak")
+                name.set("Jack Harrington")
                 url.set("https://github.com/archivesteak")
             }
             developer {
