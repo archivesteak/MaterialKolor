@@ -88,6 +88,24 @@ class ReleaseWorkflowContractTest(unittest.TestCase):
                 self.assertIn('name.set("Jack Harrington")', publication)
                 self.assertIn("developerConnection.set(", publication)
 
+    def test_final_artifact_contains_core_and_materialkolor_without_overlay(self) -> None:
+        final_union = self.text.split(
+            "- name: Strictly union and validate the complete MaterialKolor repository", 1
+        )[1].split("- name: Upload the short-lived validated MaterialKolor repository", 1)[0]
+        self.assertIn("cp -a validated-core/repository", final_union)
+        self.assertIn(
+            "test ! -e validated-core/repository/io/github/archivesteak/materialkolor",
+            final_union,
+        )
+        self.assertIn(
+            'validated-materialkolor/repository/io/github/archivesteak/compose',
+            final_union,
+        )
+        self.assertIn(
+            'validated-materialkolor/repository/io/github/archivesteak/materialkolor',
+            final_union,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

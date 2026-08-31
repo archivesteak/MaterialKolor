@@ -456,6 +456,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/validated-materialkolor"
+          test ! -e validated-core/repository/io/github/archivesteak/materialkolor
+          cp -a validated-core/repository \
+            "$RUNNER_TEMP/validated-materialkolor/repository"
           python3 core-contract/scripts/merge-maven-artifact.py \
             --windows materialkolor-shards/windows \
             --apple materialkolor-shards/apple \
@@ -473,6 +476,7 @@ jobs:
             --report "$RUNNER_TEMP/validated-materialkolor/materialkolor-merge-report.json"
           cp validated-core/merge-report.json \
             "$RUNNER_TEMP/validated-materialkolor/core-merge-report.json"
+          test -d "$RUNNER_TEMP/validated-materialkolor/repository/io/github/archivesteak/compose"
           test -d "$RUNNER_TEMP/validated-materialkolor/repository/io/github/archivesteak/materialkolor"
           test -s "$RUNNER_TEMP/validated-materialkolor/core-merge-report.json"
           test -s "$RUNNER_TEMP/validated-materialkolor/materialkolor-merge-report.json"
