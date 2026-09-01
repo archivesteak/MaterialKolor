@@ -19,6 +19,14 @@ on:
         description: Exact compose-multiplatform source commit containing the Gradle plugin
         required: true
         type: string
+      resources_contract_ref:
+        description: Exact compose-multiplatform workflow commit that produced validated resources
+        required: true
+        type: string
+      resources_run_id:
+        description: Successful run containing validated-resources-maven
+        required: true
+        type: string
       core_repository:
         description: Exact owner/repository containing the core producer workflows
         required: true
@@ -68,6 +76,14 @@ on:
         default: archivesteak/compose-multiplatform
       compose_ref:
         description: Exact compose-multiplatform source commit containing the Gradle plugin
+        required: true
+        type: string
+      resources_contract_ref:
+        description: Exact compose-multiplatform workflow commit that produced validated resources
+        required: true
+        type: string
+      resources_run_id:
+        description: Successful run containing validated-resources-maven
         required: true
         type: string
       core_repository:
@@ -217,6 +233,38 @@ jobs:
             fi
           done
 
+      - name: Validate the exact upstream resources artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+          RESOURCES_REPOSITORY: ${{ inputs.compose_repository }}
+          RESOURCES_CONTRACT_REF: ${{ inputs.resources_contract_ref }}
+          RESOURCES_RUN_ID: ${{ inputs.resources_run_id }}
+        run: |
+          if [[ ! "$RESOURCES_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]] || \
+             [[ ! "$RESOURCES_RUN_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "resources contract/run inputs are not immutable identifiers"
+            exit 1
+          fi
+          payload=$(gh api "repos/$RESOURCES_REPOSITORY/actions/runs/$RESOURCES_RUN_ID")
+          path=$(jq -r '.path | split("@")[0]' <<<"$payload")
+          if [ "$(jq -r .conclusion <<<"$payload")" != success ] || \
+             [ "$(jq -r .head_repository.full_name <<<"$payload")" != "$RESOURCES_REPOSITORY" ] || \
+             [ "$(jq -r .head_sha <<<"$payload")" != "$RESOURCES_CONTRACT_REF" ] || \
+             [ "$(jq -r .event <<<"$payload")" != workflow_dispatch ] || \
+             [ "$path" != .github/workflows/publish-resources.yml ]; then
+            echo "resources run does not match the exact successful producer contract"
+            exit 1
+          fi
+          artifacts=$(gh api \
+            "repos/$RESOURCES_REPOSITORY/actions/runs/$RESOURCES_RUN_ID/artifacts?per_page=100")
+          count=$(jq '[.artifacts[] | select(.name == "validated-resources-maven" and .expired == false)] | length' \
+            <<<"$artifacts")
+          if [ "$count" -ne 1 ]; then
+            echo "expected exactly one unexpired validated-resources-maven artifact, found $count"
+            exit 1
+          fi
+
       - name: Download Windows core shard
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -312,20 +360,14 @@ jobs:
           path: source
           persist-credentials: false
 
-      - name: Check out the exact Compose Gradle plugin source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ inputs.compose_repository }}
-          ref: ${{ inputs.compose_ref }}
-          path: compose-plugin-source
-          persist-credentials: false
-          token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
-
-      - name: Download the validated core repository
+      - name: Download the exact validated resources repository
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          name: validated-core-maven
-          path: validated-core
+          name: validated-resources-maven
+          path: validated-resources
+          repository: ${{ inputs.compose_repository }}
+          run-id: ${{ inputs.resources_run_id }}
+          github-token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
 
       - name: Validate exact source and provenance contract before building
         shell: pwsh
@@ -361,12 +403,12 @@ jobs:
           if ((git -C source status --porcelain=v1 --untracked-files=all)) {
             throw 'MaterialKolor source checkout is not clean'
           }
-          $composeResolved = (git -C compose-plugin-source rev-parse HEAD).Trim()
-          if ($composeResolved -cne $env:COMPOSE_REF) {
-            throw "Compose plugin checkout resolved to $composeResolved, expected $env:COMPOSE_REF"
+          if (-not (Test-Path validated-resources/plugin-provenance.json -PathType Leaf)) {
+            throw 'validated resources artifact has no plugin provenance'
           }
-          if ((git -C compose-plugin-source status --porcelain=v1 --untracked-files=all)) {
-            throw 'Compose plugin source checkout is not clean'
+          $pluginProvenance = Get-Content validated-resources/plugin-provenance.json -Raw | ConvertFrom-Json
+          if ($pluginProvenance.sourceRef -cne $env:COMPOSE_REF) {
+            throw "validated plugin source is $($pluginProvenance.sourceRef), expected $env:COMPOSE_REF"
           }
           if ($env:OWNER -eq 'apple') {
             $architecture = (& uname -m).Trim()
@@ -378,7 +420,7 @@ jobs:
             --owner $env:OWNER `
             --requirements orchestration/.github/materialkolor-maven-variant-requirements.json `
             --materialkolor-ref $env:MATERIALKOLOR_REF `
-            --core-report validated-core/merge-report.json `
+            --core-report validated-resources/core-merge-report.json `
             --validate-only
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -391,32 +433,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
 
-      - name: Publish the exact fork Compose Gradle plugin
-        shell: pwsh
-        env:
-          HOST_SHARD: ${{ matrix.host_shard }}
-        run: |
-          $repository = (Resolve-Path validated-core/repository).Path
-          $env:GRADLE_USER_HOME = Join-Path $env:RUNNER_TEMP "gradle-compose-plugin-$env:HOST_SHARD"
-          Push-Location compose-plugin-source/gradle-plugins
-          try {
-            $gradlew = if ($IsWindows) { '.\gradlew.bat' } else { './gradlew' }
-            & $gradlew `
-              "-Dmaven.repo.local=$repository" `
-              :compose:publishToMavenLocal `
-              --no-daemon `
-              --console=plain
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          } finally {
-            Pop-Location
-          }
-
       - name: Build, test, and stage exactly one host shard
         shell: pwsh
         env:
           HOST_SHARD: ${{ matrix.host_shard }}
         run: |
-          $repository = (Resolve-Path validated-core/repository).Path
+          $repository = (Resolve-Path validated-resources/repository).Path
           $env:GRADLE_USER_HOME = Join-Path $env:RUNNER_TEMP "gradle-materialkolor-$env:HOST_SHARD"
           Push-Location source
           try {
@@ -438,7 +460,7 @@ jobs:
           MATERIALKOLOR_REF: ${{ inputs.materialkolor_ref }}
           OWNER: ${{ matrix.owner }}
         run: |
-          $repository = (Resolve-Path validated-core/repository).Path
+          $repository = (Resolve-Path validated-resources/repository).Path
           $destination = Join-Path $env:RUNNER_TEMP "materialkolor-$env:OWNER"
           python orchestration/.github/scripts/prepare_materialkolor_shard.py `
             --owner $env:OWNER `
@@ -446,7 +468,7 @@ jobs:
             --destination $destination `
             --requirements orchestration/.github/materialkolor-maven-variant-requirements.json `
             --materialkolor-ref $env:MATERIALKOLOR_REF `
-            --core-report validated-core/merge-report.json
+            --core-report validated-resources/core-merge-report.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Upload the short-lived MaterialKolor host shard
