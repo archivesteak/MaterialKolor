@@ -173,6 +173,20 @@ def create_publications(root: Path, requirements: dict[str, object], owner: str)
 
 
 class PrepareMaterialKolorShardTest(unittest.TestCase):
+    def test_release_javadocs_are_nonempty_and_cross_host_reproducible(self) -> None:
+        build_script = (REPOSITORY_ROOT / "build.gradle.kts").read_text(encoding="utf-8")
+        for contract in (
+            'tasks.register("readmeJavadocJar", Jar::class.java)',
+            "isPreserveFileTimestamps = false",
+            "isReproducibleFileOrder = true",
+            "entryCompression = ZipEntryCompression.STORED",
+            'artifact.classifier == "javadoc"',
+            ".forEach(artifacts::remove)",
+        ):
+            self.assertIn(contract, build_script)
+        readme = REPOSITORY_ROOT / "gradle/maven-central-javadoc/README.md"
+        self.assertGreater(readme.stat().st_size, 0)
+
     def test_release_sources_have_cross_host_canonical_line_endings(self) -> None:
         attributes = (REPOSITORY_ROOT / ".gitattributes").read_text(encoding="utf-8")
         self.assertIn("* text=auto eol=lf", attributes.splitlines())
