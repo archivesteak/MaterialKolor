@@ -359,6 +359,7 @@ jobs:
           ref: ${{ inputs.materialkolor_ref }}
           path: source
           persist-credentials: false
+          submodules: recursive
 
       - name: Download the exact validated resources repository
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0

@@ -22,6 +22,7 @@ SKIKO = "3" * 40
 MATERIALKOLOR = "4" * 40
 CONTRACT = Path(__file__).parents[1] / "materialkolor-maven-variant-requirements.json"
 REPOSITORY_ROOT = Path(__file__).parents[2]
+RELEASE_WORKFLOW = Path(__file__).parents[1] / "workflows/release-host-shards.yml"
 
 
 def checked_in_requirements() -> dict[str, object]:
@@ -172,6 +173,14 @@ def create_publications(root: Path, requirements: dict[str, object], owner: str)
 
 
 class PrepareMaterialKolorShardTest(unittest.TestCase):
+    def test_release_checkout_materializes_the_pinned_upstream_test_oracle(self) -> None:
+        workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+        source_checkout = workflow.split(
+            "- name: Check out the exact MaterialKolor source",
+            maxsplit=1,
+        )[1].split("- name:", maxsplit=1)[0]
+        self.assertIn("submodules: recursive", source_checkout)
+
     def test_host_specific_test_runtime_is_portable_and_complete(self) -> None:
         build_script = (
             REPOSITORY_ROOT / "material-kolor/build.gradle.kts"
