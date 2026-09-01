@@ -11,6 +11,14 @@ on:
         description: Exact MaterialKolor commit containing this workflow and release contract
         required: true
         type: string
+      compose_repository:
+        description: Exact owner/repository containing the fork Compose Gradle plugin source
+        required: true
+        type: string
+      compose_ref:
+        description: Exact compose-multiplatform source commit containing the Gradle plugin
+        required: true
+        type: string
       core_repository:
         description: Exact owner/repository containing the core producer workflows
         required: true
@@ -51,6 +59,15 @@ on:
         type: string
       materialkolor_contract_ref:
         description: Exact MaterialKolor commit containing this workflow and release contract
+        required: true
+        type: string
+      compose_repository:
+        description: Exact owner/repository containing the fork Compose Gradle plugin source
+        required: true
+        type: string
+        default: archivesteak/compose-multiplatform
+      compose_ref:
+        description: Exact compose-multiplatform source commit containing the Gradle plugin
         required: true
         type: string
       core_repository:
@@ -295,6 +312,15 @@ jobs:
           path: source
           persist-credentials: false
 
+      - name: Check out the exact Compose Gradle plugin source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.compose_repository }}
+          ref: ${{ inputs.compose_ref }}
+          path: compose-plugin-source
+          persist-credentials: false
+          token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
+
       - name: Download the validated core repository
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -306,6 +332,8 @@ jobs:
         env:
           MATERIALKOLOR_REF: ${{ inputs.materialkolor_ref }}
           MATERIALKOLOR_CONTRACT_REF: ${{ inputs.materialkolor_contract_ref }}
+          COMPOSE_REPOSITORY: ${{ inputs.compose_repository }}
+          COMPOSE_REF: ${{ inputs.compose_ref }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
           OWNER: ${{ matrix.owner }}
         run: |
@@ -320,12 +348,25 @@ jobs:
           if ($env:MATERIALKOLOR_REF -cnotmatch '^[0-9a-f]{40}$') {
             throw 'materialkolor_ref must be a full lowercase 40-character commit SHA'
           }
+          if ($env:COMPOSE_REF -cnotmatch '^[0-9a-f]{40}$') {
+            throw 'compose_ref must be a full lowercase 40-character commit SHA'
+          }
+          if ($env:COMPOSE_REPOSITORY -cnotmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') {
+            throw 'compose_repository must be exactly owner/repository'
+          }
           $resolved = (git -C source rev-parse HEAD).Trim()
           if ($resolved -cne $env:MATERIALKOLOR_REF) {
             throw "MaterialKolor checkout resolved to $resolved, expected $env:MATERIALKOLOR_REF"
           }
           if ((git -C source status --porcelain=v1 --untracked-files=all)) {
             throw 'MaterialKolor source checkout is not clean'
+          }
+          $composeResolved = (git -C compose-plugin-source rev-parse HEAD).Trim()
+          if ($composeResolved -cne $env:COMPOSE_REF) {
+            throw "Compose plugin checkout resolved to $composeResolved, expected $env:COMPOSE_REF"
+          }
+          if ((git -C compose-plugin-source status --porcelain=v1 --untracked-files=all)) {
+            throw 'Compose plugin source checkout is not clean'
           }
           if ($env:OWNER -eq 'apple') {
             $architecture = (& uname -m).Trim()
@@ -349,6 +390,26 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb # v6.3.0
+
+      - name: Publish the exact fork Compose Gradle plugin
+        shell: pwsh
+        env:
+          HOST_SHARD: ${{ matrix.host_shard }}
+        run: |
+          $repository = (Resolve-Path validated-core/repository).Path
+          $env:GRADLE_USER_HOME = Join-Path $env:RUNNER_TEMP "gradle-compose-plugin-$env:HOST_SHARD"
+          Push-Location compose-plugin-source/gradle-plugins
+          try {
+            $gradlew = if ($IsWindows) { '.\gradlew.bat' } else { './gradlew' }
+            & $gradlew `
+              "-Dmaven.repo.local=$repository" `
+              :compose:publishToMavenLocal `
+              --no-daemon `
+              --console=plain
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
 
       - name: Build, test, and stage exactly one host shard
         shell: pwsh
