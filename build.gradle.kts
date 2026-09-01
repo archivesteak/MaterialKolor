@@ -2,6 +2,14 @@ import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
 import org.gradle.plugins.signing.Sign
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
+import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnPlugin
+import org.jetbrains.kotlin.gradle.targets.js.yarn.YarnRootEnvSpec
+import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec
+import org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin
+import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin
+import org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec
 
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
@@ -98,6 +106,31 @@ check(enabledForbiddenPublicationProperties.isEmpty()) {
 }
 
 allprojects {
+    val downloadWebToolchain = providers.gradleProperty("materialKolor.webToolchain.download")
+        .map(String::toBooleanStrict)
+        .orElse(true)
+
+    plugins.withType<NodeJsPlugin>().configureEach {
+        extensions.configure<NodeJsEnvSpec> {
+            download.set(downloadWebToolchain)
+        }
+    }
+    plugins.withType<WasmNodeJsPlugin>().configureEach {
+        extensions.configure<WasmNodeJsEnvSpec> {
+            download.set(downloadWebToolchain)
+        }
+    }
+    plugins.withType<YarnPlugin>().configureEach {
+        extensions.configure<YarnRootEnvSpec> {
+            download.set(downloadWebToolchain)
+        }
+    }
+    plugins.withType<WasmYarnPlugin>().configureEach {
+        extensions.configure<WasmYarnRootEnvSpec> {
+            download.set(downloadWebToolchain)
+        }
+    }
+
     tasks.withType<PublishToMavenRepository>().configureEach {
         enabled = false
         onlyIf("remote Maven publication is frozen") { false }
