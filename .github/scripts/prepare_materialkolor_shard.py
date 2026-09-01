@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -134,21 +135,125 @@ def primary_extension(artifact: str) -> str:
     return "klib"
 
 
-def validate_publication(version_directory: Path, artifact: str) -> None:
+def verify_archive(path: Path) -> None:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            entries = archive.infolist()
+            if not entries:
+                raise ContractError(f"published archive is empty: {path}")
+            for entry in entries:
+                parts = Path(entry.filename.replace("\\", "/")).parts
+                if entry.filename.startswith(("/", "\\")) or any(
+                    part in {"", ".", ".."} for part in parts
+                ):
+                    raise ContractError(f"published archive has an unsafe entry: {path}")
+            names = {entry.filename for entry in entries}
+    except zipfile.BadZipFile as error:
+        raise ContractError(f"published archive is corrupt: {path}") from error
+    if path.suffix == ".klib" and "default/manifest" not in names:
+        raise ContractError(f"published KLIB lacks default/manifest: {path}")
+    if path.suffix == ".aar" and "AndroidManifest.xml" not in names:
+        raise ContractError(f"published AAR lacks AndroidManifest.xml: {path}")
+
+
+def validate_publication(
+    version_directory: Path,
+    artifact: str,
+    root_artifact: str,
+    expected_variants: set[str] | None = None,
+) -> None:
+    if root_artifact not in ROOT_ARTIFACTS:
+        raise ContractError(
+            f"{artifact} maps to unknown MaterialKolor root {root_artifact}"
+        )
+    is_root = artifact == root_artifact
+    if expected_variants is None or not expected_variants:
+        raise ContractError(f"{artifact} has no expected publication variants")
     base_name = f"{artifact}-{VERSION}"
-    required = {
+    expected = {
         f"{base_name}.pom",
         f"{base_name}.module",
         f"{base_name}.{primary_extension(artifact)}",
         f"{base_name}-sources.jar",
         f"{base_name}-javadoc.jar",
     }
-    missing = sorted(name for name in required if not (version_directory / name).is_file())
-    if missing:
-        raise ContractError(f"{artifact} publication is incomplete: missing {missing}")
+    tooling_name = f"{base_name}-kotlin-tooling-metadata.json"
+    metadata_name = f"{base_name}-metadata.jar"
+    resources_name = f"{base_name}-kotlin_resources.kotlin_resources.zip"
+    if is_root:
+        expected.add(tooling_name)
+    else:
+        if any(name.endswith("MetadataElements-published") for name in expected_variants):
+            expected.add(metadata_name)
+        if any(name.endswith("ResourcesElements-published") for name in expected_variants):
+            expected.add(resources_name)
+
+    entries = list(version_directory.iterdir())
+    existing = {path.name for path in entries}
+    if existing != expected or any(not path.is_file() for path in entries):
+        raise ContractError(
+            f"{artifact} publication files differ: expected {sorted(expected)}, "
+            f"found {sorted(existing)}"
+        )
 
     pom = (version_directory / f"{base_name}.pom").read_text(encoding="utf-8")
-    module = (version_directory / f"{base_name}.module").read_text(encoding="utf-8")
+    module_path = version_directory / f"{base_name}.module"
+    module = load_json(module_path, f"{artifact} Gradle metadata")
+    component = module.get("component")
+    if not isinstance(component, dict) or (
+        component.get("group"),
+        component.get("module"),
+        component.get("version"),
+    ) != (GROUP, root_artifact, VERSION):
+        raise ContractError(f"{artifact} Gradle metadata has the wrong component")
+    component_url = component.get("url")
+    if is_root:
+        if component_url is not None:
+            raise ContractError(f"{artifact} root Gradle metadata must not redirect")
+    else:
+        expected_url = (
+            f"../../{root_artifact}/{VERSION}/"
+            f"{root_artifact}-{VERSION}.module"
+        )
+        if component_url != expected_url:
+            raise ContractError(
+                f"{artifact} Gradle metadata has the wrong root redirect"
+            )
+
+    variants = module.get("variants")
+    if not isinstance(variants, list) or not variants:
+        raise ContractError(f"{artifact} Gradle metadata has no variants")
+    variant_names = [
+        variant.get("name") for variant in variants if isinstance(variant, dict)
+    ]
+    if len(variant_names) != len(variants) or any(
+        not isinstance(name, str) or not name for name in variant_names
+    ):
+        raise ContractError(f"{artifact} Gradle metadata has malformed variants")
+    if len(set(variant_names)) != len(variant_names):
+        raise ContractError(f"{artifact} Gradle metadata repeats a variant")
+    if set(variant_names) != expected_variants:
+        raise ContractError(
+            f"{artifact} Gradle metadata variants differ: "
+            f"expected {sorted(expected_variants)}, found {sorted(variant_names)}"
+        )
+
+    if is_root:
+        tooling = load_json(
+            version_directory / tooling_name,
+            f"{artifact} Kotlin tooling metadata",
+        )
+        if (
+            tooling.get("schemaVersion") != "1.1.0"
+            or tooling.get("buildSystem") != "Gradle"
+            or tooling.get("buildPlugin")
+            != "org.jetbrains.kotlin.gradle.plugin.KotlinMultiplatformPluginWrapper"
+            or not isinstance(tooling.get("projectTargets"), list)
+            or not tooling["projectTargets"]
+        ):
+            raise ContractError(f"{artifact} Kotlin tooling metadata is incomplete")
+
+    module_text = module_path.read_text(encoding="utf-8")
     expected_name = (
         "Material Color Utilities for Kotlin Multiplatform"
         if artifact.startswith("material-color-utilities")
@@ -191,10 +296,23 @@ def validate_publication(version_directory: Path, artifact: str) -> None:
         "org.jetbrains.compose.runtime",
         "org.jetbrains.compose.ui",
     ):
-        if forbidden in module:
+        if forbidden in module_text:
             raise ContractError(f"{artifact} metadata contains forbidden coordinate {forbidden}")
-    if artifact.startswith("material-kolor-") and "io.github.archivesteak.compose.material3" not in module:
+    if (
+        artifact.startswith("material-kolor-")
+        and "io.github.archivesteak.compose.material3" not in module_text
+    ):
         raise ContractError(f"{artifact} metadata lacks forked Material3 lineage")
+
+    for filename in (
+        f"{base_name}.{primary_extension(artifact)}",
+        f"{base_name}-sources.jar",
+        f"{base_name}-javadoc.jar",
+    ):
+        verify_archive(version_directory / filename)
+    for filename in (metadata_name, resources_name):
+        if filename in expected:
+            verify_archive(version_directory / filename)
 
 
 def validate_release_contract(
@@ -239,6 +357,41 @@ def prepare_shard(
         materialkolor_ref=materialkolor_ref,
         core_report_path=core_report_path,
     )
+    modules = module_requirements(requirements)
+    platform_owners = requirements["platformOwners"]
+    publication_specs: dict[str, tuple[str, set[str]]] = {
+        root: (
+            root,
+            {
+                variant
+                for platform, variants in modules[root]["requiredVariants"].items()
+                if platform == "common" or platform_owners[platform] == owner
+                for variant in variants
+            },
+        )
+        for root in ROOT_ARTIFACTS
+    }
+    for root, module in modules.items():
+        required_variants = module.get("requiredVariants")
+        target_modules = module.get("targetModules")
+        if not isinstance(required_variants, dict) or not isinstance(
+            target_modules, dict
+        ):
+            raise ContractError(f"{root} lacks variants or target modules")
+        for platform, target in target_modules.items():
+            names = required_variants.get(platform)
+            if not isinstance(target, str) or not isinstance(names, list) or not names:
+                raise ContractError(
+                    f"{root} has an invalid publication mapping for {platform!r}"
+                )
+            if not all(isinstance(name, str) and name for name in names):
+                raise ContractError(f"{root} has invalid variants for {platform!r}")
+            spec = (root, set(names))
+            previous = publication_specs.setdefault(target, spec)
+            if previous != spec:
+                raise ContractError(
+                    f"MaterialKolor target {target} has conflicting publication mappings"
+                )
 
     source_repository = source_repository.resolve()
     if source_repository.is_symlink() or not source_repository.is_dir():
@@ -262,7 +415,18 @@ def prepare_shard(
     for artifact in sorted(artifacts):
         source_version = source_group / artifact / VERSION
         ensure_tree_has_no_symlinks(source_version)
-        validate_publication(source_version, artifact)
+        spec = publication_specs.get(artifact)
+        if spec is None:
+            raise ContractError(
+                f"{artifact} has no MaterialKolor root publication mapping"
+            )
+        root_artifact, expected_variants = spec
+        validate_publication(
+            source_version,
+            artifact,
+            root_artifact,
+            expected_variants,
+        )
         shutil.copytree(source_version, destination_group / artifact / VERSION)
 
     marker = destination / "provenance" / f"{owner}.json"

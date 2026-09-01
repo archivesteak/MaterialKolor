@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 from prepare_materialkolor_shard import (
@@ -45,8 +46,34 @@ def core_report(root: Path) -> Path:
     return write_json(root / "core-report.json", {"sourceProvenance": provenance})
 
 
+def write_archive(path: Path) -> Path:
+    with zipfile.ZipFile(path, "w") as archive:
+        if path.suffix == ".klib":
+            archive.writestr("default/manifest", "unique_name=fixture")
+            archive.writestr("default/ir/body.knb", "verified")
+        elif path.suffix == ".aar":
+            archive.writestr("AndroidManifest.xml", "<manifest />")
+        else:
+            archive.writestr("content.txt", "verified")
+    return path
+
+
+def version_directory(repository: Path, artifact: str) -> Path:
+    return repository.joinpath(*GROUP.split("."), artifact, VERSION)
+
+
 def create_publications(root: Path, requirements: dict[str, object], owner: str) -> Path:
     group = root.joinpath(*GROUP.split("."))
+    modules = {
+        module["coordinate"].split(":")[1]: module
+        for module in requirements["modules"]
+    }
+    targets = {
+        target: (root_artifact, platform, module["requiredVariants"][platform])
+        for root_artifact, module in modules.items()
+        for platform, target in module["targetModules"].items()
+    }
+    platform_owners = requirements["platformOwners"]
     for artifact in expected_artifacts(requirements, owner):
         version = group / artifact / VERSION
         version.mkdir(parents=True)
@@ -72,15 +99,74 @@ def create_publications(root: Path, requirements: dict[str, object], owner: str)
 <scm><connection>scm:git:https://github.com/archivesteak/MaterialKolor.git</connection></scm>
 </project>
 """.format(artifact=artifact, name=name, license_name=license_name)
-        module = "io.github.archivesteak.compose.material3" if artifact.startswith("material-kolor-") else "{}"
         (version / f"{base}.pom").write_text(pom, encoding="utf-8")
-        (version / f"{base}.module").write_text(module, encoding="utf-8")
-        for suffix in (
-            primary_extension(artifact),
-            "sources.jar",
-            "javadoc.jar",
-        ):
-            (version / f"{base}-{suffix}" if suffix.endswith(".jar") else version / f"{base}.{suffix}").write_bytes(b"x")
+
+        root_module = modules.get(artifact)
+        if root_module is not None:
+            root_artifact = artifact
+            variant_names = [
+                name
+                for platform, names in root_module["requiredVariants"].items()
+                if platform == "common" or platform_owners[platform] == owner
+                for name in names
+            ]
+            component = {
+                "group": GROUP,
+                "module": root_artifact,
+                "version": VERSION,
+            }
+        else:
+            root_artifact, _platform, variant_names = targets[artifact]
+            component = {
+                "url": (
+                    f"../../{root_artifact}/{VERSION}/"
+                    f"{root_artifact}-{VERSION}.module"
+                ),
+                "group": GROUP,
+                "module": root_artifact,
+                "version": VERSION,
+            }
+        variants = [{"name": variant_name} for variant_name in variant_names]
+        if artifact.startswith("material-kolor-"):
+            variants[0]["dependencies"] = [
+                {
+                    "group": "io.github.archivesteak.compose.material3",
+                    "module": "material3",
+                    "version": {"requires": "1.12.0-alpha03-mingw"},
+                }
+            ]
+        write_json(
+            version / f"{base}.module",
+            {"component": component, "variants": variants},
+        )
+
+        write_archive(version / f"{base}.{primary_extension(artifact)}")
+        write_archive(version / f"{base}-sources.jar")
+        write_archive(version / f"{base}-javadoc.jar")
+        if root_module is not None:
+            write_json(
+                version / f"{base}-kotlin-tooling-metadata.json",
+                {
+                    "schemaVersion": "1.1.0",
+                    "buildSystem": "Gradle",
+                    "buildPlugin": (
+                        "org.jetbrains.kotlin.gradle.plugin."
+                        "KotlinMultiplatformPluginWrapper"
+                    ),
+                    "projectTargets": [{"platformType": "common"}],
+                },
+            )
+        else:
+            if any(
+                name.endswith("MetadataElements-published") for name in variant_names
+            ):
+                write_archive(version / f"{base}-metadata.jar")
+            if any(
+                name.endswith("ResourcesElements-published") for name in variant_names
+            ):
+                write_archive(
+                    version / f"{base}-kotlin_resources.kotlin_resources.zip"
+                )
     return root
 
 
@@ -95,6 +181,11 @@ class PrepareMaterialKolorShardTest(unittest.TestCase):
             for module in requirements["modules"]
             if ":material-kolor:" in module["coordinate"]
         )
+        material_utilities = next(
+            module
+            for module in requirements["modules"]
+            if ":material-color-utilities:" in module["coordinate"]
+        )
         for platform in (
             "mingwX64",
             "macosArm64",
@@ -108,6 +199,31 @@ class PrepareMaterialKolorShardTest(unittest.TestCase):
                     f"{platform}ResourcesElements-published",
                     material_kolor["requiredVariants"][platform],
                 )
+        for module, platforms in (
+            (
+                material_utilities,
+                ("macosArm64", "iosX64", "iosArm64", "iosSimulatorArm64"),
+            ),
+            (
+                material_kolor,
+                ("macosArm64", "iosArm64", "iosSimulatorArm64"),
+            ),
+        ):
+            for platform in platforms:
+                with self.subTest(
+                    artifact=module["coordinate"],
+                    platform=platform,
+                ):
+                    self.assertIn(
+                        f"{platform}MetadataElements-published",
+                        module["requiredVariants"][platform],
+                    )
+            self.assertFalse(
+                any(
+                    name.endswith("MetadataElements-published")
+                    for name in module["requiredVariants"]["mingwX64"]
+                )
+            )
 
     def test_prepares_each_exact_host_with_complete_provenance(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -139,6 +255,171 @@ class PrepareMaterialKolorShardTest(unittest.TestCase):
                     {path.name for path in destination.iterdir()},
                     {"io", "provenance"},
                 )
+                if owner == "apple":
+                    utilities = version_directory(
+                        destination,
+                        "material-color-utilities-macosarm64",
+                    )
+                    material_kolor = version_directory(
+                        destination,
+                        "material-kolor-macosarm64",
+                    )
+                    self.assertTrue(
+                        (
+                            utilities
+                            / f"material-color-utilities-macosarm64-{VERSION}-metadata.jar"
+                        ).is_file()
+                    )
+                    self.assertFalse(
+                        (
+                            utilities
+                            / (
+                                "material-color-utilities-macosarm64-"
+                                f"{VERSION}-kotlin_resources.kotlin_resources.zip"
+                            )
+                        ).exists()
+                    )
+                    self.assertTrue(
+                        (
+                            material_kolor
+                            / f"material-kolor-macosarm64-{VERSION}-metadata.jar"
+                        ).is_file()
+                    )
+                    self.assertTrue(
+                        (
+                            material_kolor
+                            / (
+                                f"material-kolor-macosarm64-{VERSION}-"
+                                "kotlin_resources.kotlin_resources.zip"
+                            )
+                        ).is_file()
+                    )
+
+    def test_rejects_missing_or_corrupt_apple_metadata_archive(self) -> None:
+        for mutation in ("missing", "corrupt"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                requirements = checked_in_requirements()
+                requirements_path = write_json(root / "requirements.json", requirements)
+                source = create_publications(root / "source", requirements, "apple")
+                artifact = "material-color-utilities-macosarm64"
+                metadata = version_directory(source, artifact) / (
+                    f"{artifact}-{VERSION}-metadata.jar"
+                )
+                if mutation == "missing":
+                    metadata.unlink()
+                    expected_error = "publication files differ"
+                else:
+                    metadata.write_bytes(b"not a ZIP archive")
+                    expected_error = "published archive is corrupt"
+                with self.assertRaisesRegex(ContractError, expected_error):
+                    prepare_shard(
+                        owner="apple",
+                        source_repository=source,
+                        destination=root / "output",
+                        requirements_path=requirements_path,
+                        materialkolor_ref=MATERIALKOLOR,
+                        core_report_path=core_report(root),
+                    )
+
+    def test_rejects_leaf_with_wrong_root_redirect_or_variant_set(self) -> None:
+        for mutation in ("redirect", "variants"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                requirements = checked_in_requirements()
+                requirements_path = write_json(root / "requirements.json", requirements)
+                source = create_publications(root / "source", requirements, "apple")
+                artifact = "material-kolor-macosarm64"
+                module_path = version_directory(source, artifact) / (
+                    f"{artifact}-{VERSION}.module"
+                )
+                module = json.loads(module_path.read_text(encoding="utf-8"))
+                if mutation == "redirect":
+                    module["component"]["url"] = (
+                        f"../../material-color-utilities/{VERSION}/"
+                        f"material-color-utilities-{VERSION}.module"
+                    )
+                    expected_error = "wrong root redirect"
+                else:
+                    module["variants"].pop()
+                    expected_error = "Gradle metadata variants differ"
+                write_json(module_path, module)
+                with self.assertRaisesRegex(ContractError, expected_error):
+                    prepare_shard(
+                        owner="apple",
+                        source_repository=source,
+                        destination=root / "output",
+                        requirements_path=requirements_path,
+                        materialkolor_ref=MATERIALKOLOR,
+                        core_report_path=core_report(root),
+                    )
+
+    def test_rejects_resources_on_non_compose_leaf_and_metadata_on_windows(self) -> None:
+        cases = (
+            (
+                "apple",
+                "material-color-utilities-macosarm64",
+                "kotlin_resources.kotlin_resources.zip",
+            ),
+            ("windows", "material-color-utilities-mingwx64", "metadata.jar"),
+        )
+        for owner, artifact, suffix in cases:
+            with self.subTest(owner=owner, artifact=artifact):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    requirements = checked_in_requirements()
+                    requirements_path = write_json(
+                        root / "requirements.json", requirements
+                    )
+                    source = create_publications(root / "source", requirements, owner)
+                    write_archive(
+                        version_directory(source, artifact)
+                        / f"{artifact}-{VERSION}-{suffix}"
+                    )
+                    with self.assertRaisesRegex(
+                        ContractError, "publication files differ"
+                    ):
+                        prepare_shard(
+                            owner=owner,
+                            source_repository=source,
+                            destination=root / "output",
+                            requirements_path=requirements_path,
+                            materialkolor_ref=MATERIALKOLOR,
+                            core_report_path=core_report(root),
+                        )
+
+    def test_rejects_invalid_root_tooling_metadata_and_root_redirect(self) -> None:
+        for mutation in ("tooling", "redirect"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                requirements = checked_in_requirements()
+                requirements_path = write_json(root / "requirements.json", requirements)
+                source = create_publications(root / "source", requirements, "windows")
+                artifact = "material-color-utilities"
+                publication = version_directory(source, artifact)
+                if mutation == "tooling":
+                    tooling = publication / (
+                        f"{artifact}-{VERSION}-kotlin-tooling-metadata.json"
+                    )
+                    value = json.loads(tooling.read_text(encoding="utf-8"))
+                    value["projectTargets"] = []
+                    write_json(tooling, value)
+                    expected_error = "Kotlin tooling metadata is incomplete"
+                else:
+                    module_path = publication / f"{artifact}-{VERSION}.module"
+                    module = json.loads(module_path.read_text(encoding="utf-8"))
+                    module["component"]["url"] = "../../unexpected.module"
+                    write_json(module_path, module)
+                    expected_error = "root Gradle metadata must not redirect"
+                with self.assertRaisesRegex(ContractError, expected_error):
+                    prepare_shard(
+                        owner="windows",
+                        source_repository=source,
+                        destination=root / "output",
+                        requirements_path=requirements_path,
+                        materialkolor_ref=MATERIALKOLOR,
+                        core_report_path=core_report(root),
+                    )
 
     def test_rejects_an_extra_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
