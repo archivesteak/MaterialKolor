@@ -106,6 +106,15 @@ class ReleaseWorkflowContractTest(unittest.TestCase):
             final_union,
         )
 
+    def test_central_verifier_runs_before_validated_repository_upload(self) -> None:
+        verifier = (
+            "python3 core-contract/.github/scripts/verify-central-publications.py "
+            "\\\n            \"$RUNNER_TEMP/validated-materialkolor/repository\""
+        )
+        upload = "- name: Upload the short-lived validated MaterialKolor repository"
+        self.assertIn(verifier, self.text)
+        self.assertLess(self.text.index(verifier), self.text.index(upload))
+
 
 if __name__ == "__main__":
     unittest.main()
