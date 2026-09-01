@@ -769,3 +769,4 @@ public final class com/materialkolor/utils/ColorUtils {
 	public final fun xyzFromArgb (I)[D
 	public final fun yFromLstar (D)D
 }
+

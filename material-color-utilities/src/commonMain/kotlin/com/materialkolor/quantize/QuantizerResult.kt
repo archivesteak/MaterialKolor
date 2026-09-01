@@ -15,12 +15,9 @@
  */
 package com.materialkolor.quantize
 
-import kotlin.jvm.JvmInline
-
 /**
  * Represents result of a quantizer run
  */
-@JvmInline
-internal value class QuantizerResult(
+internal data class QuantizerResult(
     val colorToCount: Map<Int, Int>,
 )

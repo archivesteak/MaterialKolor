@@ -271,3 +271,4 @@ public final class com/materialkolor/ktx/TonalPaletteKt {
 	public static final fun from-4WTKRHQ (Lcom/materialkolor/palettes/TonalPalette$Companion;J)Lcom/materialkolor/palettes/TonalPalette;
 	public static final fun toneColor (Lcom/materialkolor/palettes/TonalPalette;I)J
 }
+

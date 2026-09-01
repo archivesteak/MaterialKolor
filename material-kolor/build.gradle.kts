@@ -47,11 +47,13 @@ kotlin {
 
         js {
             browser()
+            binaries.executable()
         }
 
         @OptIn(ExperimentalWasmDsl::class)
         wasmJs {
             browser()
+            binaries.executable()
         }
 
     }
@@ -103,6 +105,10 @@ kotlin {
         if (buildsWebAndroid) {
             androidMain.dependencies {
                 compileOnly(libs.androidx.compose.material3)
+            }
+
+            named("androidHostTest").dependencies {
+                runtimeOnly(libs.androidx.compose.material3)
             }
         }
 
