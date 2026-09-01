@@ -115,6 +115,27 @@ class ReleaseWorkflowContractTest(unittest.TestCase):
         self.assertIn(verifier, self.text)
         self.assertLess(self.text.index(verifier), self.text.index(upload))
 
+    def test_web_release_uses_the_kotlin_pinned_system_toolchain(self) -> None:
+        self.assertIn(
+            "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0",
+            self.text,
+        )
+        self.assertIn('node-version: "24.10.0"', self.text)
+        self.assertIn("npm install --global yarn@1.22.22", self.text)
+        self.assertIn('test "$(yarn --version)" = 1.22.22', self.text)
+        self.assertIn(
+            '"-PmaterialKolor.webToolchain.download=$env:WEB_TOOLCHAIN_DOWNLOAD"',
+            self.text,
+        )
+
+        build = (REPOSITORY / "build.gradle.kts").read_text(encoding="utf-8")
+        self.assertIn('gradleProperty("materialKolor.webToolchain.download")', build)
+        self.assertIn("extensions.configure<NodeJsEnvSpec>", build)
+        self.assertIn("extensions.configure<WasmNodeJsEnvSpec>", build)
+        self.assertIn("extensions.configure<YarnRootEnvSpec>", build)
+        self.assertIn("extensions.configure<WasmYarnRootEnvSpec>", build)
+        self.assertEqual(build.count("download.set(downloadWebToolchain)"), 4)
+
 
 if __name__ == "__main__":
     unittest.main()
