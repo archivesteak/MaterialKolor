@@ -21,6 +21,7 @@ SKIA = "2" * 40
 SKIKO = "3" * 40
 MATERIALKOLOR = "4" * 40
 CONTRACT = Path(__file__).parents[1] / "materialkolor-maven-variant-requirements.json"
+REPOSITORY_ROOT = Path(__file__).parents[2]
 
 
 def checked_in_requirements() -> dict[str, object]:
@@ -171,6 +172,21 @@ def create_publications(root: Path, requirements: dict[str, object], owner: str)
 
 
 class PrepareMaterialKolorShardTest(unittest.TestCase):
+    def test_host_specific_test_runtime_is_portable_and_complete(self) -> None:
+        build_script = (
+            REPOSITORY_ROOT / "material-kolor/build.gradle.kts"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(build_script.count("binaries.executable()"), 2)
+        self.assertIn('named("androidHostTest").dependencies', build_script)
+        self.assertIn("runtimeOnly(libs.androidx.compose.material3)", build_script)
+
+        quantizer = (
+            REPOSITORY_ROOT
+            / "material-color-utilities/src/commonMain/kotlin/com/materialkolor/quantize/QuantizerResult.kt"
+        ).read_text(encoding="utf-8")
+        self.assertIn("internal data class QuantizerResult", quantizer)
+        self.assertNotIn("JvmInline", quantizer)
+
     def test_exact_artifact_sets_match_all_three_hosts(self) -> None:
         requirements = checked_in_requirements()
         self.assertEqual(len(expected_artifacts(requirements, "windows")), 6)

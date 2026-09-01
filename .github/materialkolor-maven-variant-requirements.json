@@ -17,18 +17,18 @@
   "sourceProvenance": {
     "windows": {
       "compose": "bfefb96bdc1b50f2fcc540dce8eea742dc5982cf",
-      "materialkolor": "3999485ddd804e4bd0609375fcd18cd809d84b8c",
+      "materialkolor": "24e70397d479af9d6152011c1abf5352dd7f67e3",
       "skia": "343b3b3b03072992df41ef46c3d8e78ef7a5792e",
       "skiko": "0adbc7a2d3365d902d51b2c0e7940d15a11a35d3"
     },
     "apple": {
       "compose": "bfefb96bdc1b50f2fcc540dce8eea742dc5982cf",
-      "materialkolor": "3999485ddd804e4bd0609375fcd18cd809d84b8c",
+      "materialkolor": "24e70397d479af9d6152011c1abf5352dd7f67e3",
       "skiko": "0adbc7a2d3365d902d51b2c0e7940d15a11a35d3"
     },
     "web": {
       "compose": "bfefb96bdc1b50f2fcc540dce8eea742dc5982cf",
-      "materialkolor": "3999485ddd804e4bd0609375fcd18cd809d84b8c",
+      "materialkolor": "24e70397d479af9d6152011c1abf5352dd7f67e3",
       "skiko": "0adbc7a2d3365d902d51b2c0e7940d15a11a35d3"
     }
   },
