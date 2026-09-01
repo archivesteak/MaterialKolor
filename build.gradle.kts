@@ -1,6 +1,10 @@
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.publish.PublishingExtension
+import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.tasks.PublishToMavenLocal
 import org.gradle.api.publish.maven.tasks.PublishToMavenRepository
+import org.gradle.api.tasks.bundling.Jar
+import org.gradle.api.tasks.bundling.ZipEntryCompression
 import org.gradle.plugins.signing.Sign
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsPlugin
@@ -106,6 +110,7 @@ check(enabledForbiddenPublicationProperties.isEmpty()) {
 }
 
 allprojects {
+    val publicationProject = this
     val downloadWebToolchain = providers.gradleProperty("materialKolor.webToolchain.download")
         .map(String::toBooleanStrict)
         .orElse(true)
@@ -128,6 +133,39 @@ allprojects {
     plugins.withType<WasmYarnPlugin>().configureEach {
         extensions.configure<WasmYarnRootEnvSpec> {
             download.set(downloadWebToolchain)
+        }
+    }
+
+    plugins.withId("maven-publish") {
+        val readmeJavadocJar = tasks.register("readmeJavadocJar", Jar::class.java) {
+            group = "publishing"
+            description = "Packages deterministic Maven Central documentation"
+            archiveClassifier.set("javadoc")
+            destinationDirectory.set(layout.buildDirectory.dir("publications/readme-javadoc"))
+            duplicatesStrategy = DuplicatesStrategy.FAIL
+            isPreserveFileTimestamps = false
+            isReproducibleFileOrder = true
+            entryCompression = ZipEntryCompression.STORED
+            filePermissions { unix("0644") }
+            dirPermissions { unix("0755") }
+            from(rootProject.layout.projectDirectory.file("gradle/maven-central-javadoc/README.md"))
+        }
+
+        gradle.projectsEvaluated {
+            publicationProject.extensions.configure<PublishingExtension> {
+                publications.withType(MavenPublication::class.java).configureEach {
+                    if (artifacts.any { artifact -> artifact.classifier.isNullOrBlank() }) {
+                        artifacts
+                            .filter { artifact -> artifact.classifier == "javadoc" }
+                            .forEach(artifacts::remove)
+                        artifact(readmeJavadocJar) {
+                            classifier = "javadoc"
+                            extension = "jar"
+                            builtBy(readmeJavadocJar)
+                        }
+                    }
+                }
+            }
         }
     }
 
