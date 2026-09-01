@@ -1,3 +1,7 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.jar binary
 *.api text eol=lf
 kotlin-js-store/yarn.lock text eol=lf
 kotlin-js-store/wasm/yarn.lock text eol=lf
