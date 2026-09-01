@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 2,
+  "groupPrefix": "io.github.archivesteak.materialkolor",
+  "note": "This immutable contract pins the complete MaterialKolor source commit A and the exact upstream producer sources used by every host shard.",
+  "platformOwners": {
+    "common": "windows",
+    "jvm": "windows",
+    "mingwX64": "windows",
+    "macosArm64": "apple",
+    "iosX64": "apple",
+    "iosArm64": "apple",
+    "iosSimulatorArm64": "apple",
+    "js": "web",
+    "wasmJs": "web",
+    "android": "web"
+  },
+  "sourceProvenance": {
+    "windows": {
+      "compose": "2f6ffd997c798e063f1a717521673d5f4e2365c6",
+      "materialkolor": "33abcb72fed9fe041a31744920c566aa28449b19",
+      "skia": "343b3b3b03072992df41ef46c3d8e78ef7a5792e",
+      "skiko": "73e4b5ef52f42728787d060007774166962cc668"
+    },
+    "apple": {
+      "compose": "2f6ffd997c798e063f1a717521673d5f4e2365c6",
+      "materialkolor": "33abcb72fed9fe041a31744920c566aa28449b19",
+      "skiko": "73e4b5ef52f42728787d060007774166962cc668"
+    },
+    "web": {
+      "compose": "2f6ffd997c798e063f1a717521673d5f4e2365c6",
+      "materialkolor": "33abcb72fed9fe041a31744920c566aa28449b19",
+      "skiko": "73e4b5ef52f42728787d060007774166962cc668"
+    }
+  },
+  "pomOnlyModules": [],
+  "modules": [
+    {
+      "coordinate": "io.github.archivesteak.materialkolor:material-color-utilities:5.0.1-mingw",
+      "requiredVariants": {
+        "common": ["metadataApiElements", "metadataSourcesElements"],
+        "jvm": ["jvmApiElements-published", "jvmRuntimeElements-published", "jvmSourcesElements-published"],
+        "mingwX64": ["mingwX64ApiElements-published", "mingwX64SourcesElements-published"],
+        "macosArm64": ["macosArm64ApiElements-published", "macosArm64SourcesElements-published"],
+        "iosX64": ["iosX64ApiElements-published", "iosX64SourcesElements-published"],
+        "iosArm64": ["iosArm64ApiElements-published", "iosArm64SourcesElements-published"],
+        "iosSimulatorArm64": ["iosSimulatorArm64ApiElements-published", "iosSimulatorArm64SourcesElements-published"],
+        "js": ["jsApiElements-published", "jsRuntimeElements-published", "jsSourcesElements-published"],
+        "wasmJs": ["wasmJsApiElements-published", "wasmJsRuntimeElements-published", "wasmJsSourcesElements-published"],
+        "android": ["androidApiElements-published", "androidRuntimeElements-published", "androidSourcesElements-published"]
+      },
+      "targetModules": {
+        "jvm": "material-color-utilities-jvm",
+        "mingwX64": "material-color-utilities-mingwx64",
+        "macosArm64": "material-color-utilities-macosarm64",
+        "iosX64": "material-color-utilities-iosx64",
+        "iosArm64": "material-color-utilities-iosarm64",
+        "iosSimulatorArm64": "material-color-utilities-iossimulatorarm64",
+        "js": "material-color-utilities-js",
+        "wasmJs": "material-color-utilities-wasm-js",
+        "android": "material-color-utilities-android"
+      }
+    },
+    {
+      "coordinate": "io.github.archivesteak.materialkolor:material-kolor:5.0.1-mingw",
+      "requiredVariants": {
+        "common": ["metadataApiElements", "metadataSourcesElements"],
+        "jvm": ["jvmApiElements-published", "jvmRuntimeElements-published", "jvmSourcesElements-published"],
+        "mingwX64": ["mingwX64ApiElements-published", "mingwX64SourcesElements-published", "mingwX64ResourcesElements-published"],
+        "macosArm64": ["macosArm64ApiElements-published", "macosArm64SourcesElements-published", "macosArm64ResourcesElements-published"],
+        "iosArm64": ["iosArm64ApiElements-published", "iosArm64SourcesElements-published", "iosArm64ResourcesElements-published"],
+        "iosSimulatorArm64": ["iosSimulatorArm64ApiElements-published", "iosSimulatorArm64SourcesElements-published", "iosSimulatorArm64ResourcesElements-published"],
+        "js": ["jsApiElements-published", "jsRuntimeElements-published", "jsSourcesElements-published", "jsResourcesElements-published"],
+        "wasmJs": ["wasmJsApiElements-published", "wasmJsRuntimeElements-published", "wasmJsSourcesElements-published", "wasmJsResourcesElements-published"],
+        "android": ["androidApiElements-published", "androidRuntimeElements-published", "androidSourcesElements-published"]
+      },
+      "targetModules": {
+        "jvm": "material-kolor-jvm",
+        "mingwX64": "material-kolor-mingwx64",
+        "macosArm64": "material-kolor-macosarm64",
+        "iosArm64": "material-kolor-iosarm64",
+        "iosSimulatorArm64": "material-kolor-iossimulatorarm64",
+        "js": "material-kolor-js",
+        "wasmJs": "material-kolor-wasm-js",
+        "android": "material-kolor-android"
+      }
+    }
+  ]
+}
