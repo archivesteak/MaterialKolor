@@ -20,7 +20,11 @@ on:
         required: true
         type: string
       core_contract_ref:
-        description: Exact core commit containing the merger, requirements, and producer workflows
+        description: Exact core commit that produced the artifacts
+        required: true
+        type: string
+      core_tools_ref:
+        description: Exact core commit containing the merger and requirements
         required: true
         type: string
       core_windows_run_id:
@@ -59,7 +63,11 @@ on:
         required: true
         type: string
       core_contract_ref:
-        description: Exact core commit containing the merger, requirements, and producer workflows
+        description: Exact core commit that produced the artifacts
+        required: true
+        type: string
+      core_tools_ref:
+        description: Exact core commit containing the merger and requirements
         required: true
         type: string
       core_windows_run_id:
@@ -118,11 +126,11 @@ jobs:
             exit 1
           fi
 
-      - name: Check out the exact core merge contract
+      - name: Check out the exact core tools contract
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.core_repository }}
-          ref: ${{ inputs.core_contract_ref }}
+          ref: ${{ inputs.core_tools_ref }}
           path: core-contract
           persist-credentials: false
           token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
@@ -137,6 +145,7 @@ jobs:
           CORE_REPOSITORY: ${{ inputs.core_repository }}
           CORE_REF: ${{ inputs.core_ref }}
           CORE_CONTRACT_REF: ${{ inputs.core_contract_ref }}
+          CORE_TOOLS_REF: ${{ inputs.core_tools_ref }}
           WINDOWS_RUN_ID: ${{ inputs.core_windows_run_id }}
           APPLE_RUN_ID: ${{ inputs.core_apple_run_id }}
           WEB_RUN_ID: ${{ inputs.core_web_run_id }}
@@ -145,9 +154,13 @@ jobs:
             echo "core_contract_ref must be a full lowercase 40-character commit SHA"
             exit 1
           fi
+          if [[ ! "$CORE_TOOLS_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "core_tools_ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
           resolved=$(git -C core-contract rev-parse HEAD)
-          if [ "$resolved" != "$CORE_CONTRACT_REF" ]; then
-            echo "core checkout resolved to $resolved, expected $CORE_CONTRACT_REF"
+          if [ "$resolved" != "$CORE_TOOLS_REF" ]; then
+            echo "core tools checkout resolved to $resolved, expected $CORE_TOOLS_REF"
             exit 1
           fi
           test -z "$(git -C core-contract status --porcelain=v1 --untracked-files=all)"
@@ -402,7 +415,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.core_repository }}
-          ref: ${{ inputs.core_contract_ref }}
+          ref: ${{ inputs.core_tools_ref }}
           path: core-contract
           persist-credentials: false
           token: ${{ secrets.core_artifacts_token || secrets.CORE_ARTIFACTS_TOKEN }}
@@ -412,6 +425,7 @@ jobs:
         env:
           MATERIALKOLOR_CONTRACT_REF: ${{ inputs.materialkolor_contract_ref }}
           CORE_CONTRACT_REF: ${{ inputs.core_contract_ref }}
+          CORE_TOOLS_REF: ${{ inputs.core_tools_ref }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           if [[ ! "$MATERIALKOLOR_CONTRACT_REF" =~ ^[0-9a-f]{40}$ ]] || \
@@ -423,8 +437,12 @@ jobs:
             echo "core_contract_ref must be a full lowercase 40-character commit SHA"
             exit 1
           fi
+          if [[ ! "$CORE_TOOLS_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "core_tools_ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
           test "$(git -C orchestration rev-parse HEAD)" = "$MATERIALKOLOR_CONTRACT_REF"
-          test "$(git -C core-contract rev-parse HEAD)" = "$CORE_CONTRACT_REF"
+          test "$(git -C core-contract rev-parse HEAD)" = "$CORE_TOOLS_REF"
           test -z "$(git -C orchestration status --porcelain=v1 --untracked-files=all)"
           test -z "$(git -C core-contract status --porcelain=v1 --untracked-files=all)"
 
