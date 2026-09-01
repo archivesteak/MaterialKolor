@@ -173,6 +173,12 @@ def create_publications(root: Path, requirements: dict[str, object], owner: str)
 
 
 class PrepareMaterialKolorShardTest(unittest.TestCase):
+    def test_release_sources_have_cross_host_canonical_line_endings(self) -> None:
+        attributes = (REPOSITORY_ROOT / ".gitattributes").read_text(encoding="utf-8")
+        self.assertIn("* text=auto eol=lf", attributes.splitlines())
+        self.assertIn("*.bat text eol=crlf", attributes.splitlines())
+        self.assertIn("*.jar binary", attributes.splitlines())
+
     def test_release_checkout_materializes_the_pinned_upstream_test_oracle(self) -> None:
         workflow = RELEASE_WORKFLOW.read_text(encoding="utf-8")
         source_checkout = workflow.split(
